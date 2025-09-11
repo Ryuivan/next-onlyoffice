@@ -55,7 +55,7 @@ const Editor = ({ config }: EditorProps) => {
     <div className="min-h-screen min-w-screen h-screen w-screen">
       <DocumentEditor
         id="docxEditor" // ID unik untuk instance editor
-        documentServerUrl="http://localhost:8080" // URL ke Document Server OnlyOffice
+        documentServerUrl="https://text-editor-rim-staging.digital-lab.ai" // URL ke Document Server OnlyOffice
         config={config} // Config editor
         events_onDocumentReady={onDocumentReady} // Event: dokumen siap
         onLoadComponentError={onLoadComponentError} // Event: gagal load

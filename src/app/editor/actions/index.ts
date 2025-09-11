@@ -7,9 +7,10 @@ import {
   generateBlobSASQueryParameters,
   BlobSASPermissions,
   SASProtocol,
-  type BlobGetPropertiesResponse,
+  type BlobGetPropertiesResponse
 } from "@azure/storage-blob";
 import { getContainerClient } from "@/app/utils/azure";
+import { toBase64Url } from "@/app/utils/base64url";
 
 /**
  * Mengambil properti blob dari Azure Blob Storage berdasarkan nama file.
@@ -55,12 +56,17 @@ export const getBlobDownloadUrl = async (
         protocol: SASProtocol.Https,
         startsOn: new Date(),
         expiresOn: new Date(Date.now() + 60 * 60 * 1000), // +1 jam
+        version: "2023-11-03"
       },
       credential
     ).toString();
 
     // Sertakan timestamp agar URL selalu fresh
-    return `https://${accountName}.blob.core.windows.net/${containerName}/${blobName}?${sasToken}&ts=${Date.now()}`;
+    // return `https://${accountName}.blob.core.windows.net/${containerName}/${blobName}?${sasToken}&ts=${Date.now()}`;
+    // return `https://camundapoc.blob.core.windows.net/documents/${blobName}?${sasToken}&ts=${Date.now()}`;
+    return `https://${accountName}.blob.core.windows.net/${containerName}/${encodeURIComponent(
+      blobName
+    )}?${sasToken}`;
   } catch (error) {
     console.log(
       "getFileDownloadUrl",
@@ -122,20 +128,30 @@ const getOnlyOfficeKey = async (blobName: string): Promise<string> => {
  *  - JWT token untuk keamanan
  */
 export const getOnlyOfficeConfig = async (blobName: string) => {
+  const baseURL = process.env.BASE_URL!;
   try {
     // Ambil metadata blob
     const properties = await getBlobPropertiesByName(blobName);
     if (!properties) throw new Error("File properties not found");
 
     // Buat link download sementara
-    const url = await getBlobDownloadUrl(blobName);
+    const rawurl = await getBlobDownloadUrl(blobName);
+    const u = toBase64Url(rawurl);
+    const url = `${baseURL}/api/oo-proxy?u=${u}`;
     if (!url) throw new Error("File download URL not found");
 
     // Buat key unik berdasarkan isi file
-    const key = await getOnlyOfficeKey(blobName);
+    // const key = await getOnlyOfficeKey(blobName);
+    const key = (await getOnlyOfficeKey(blobName)) + "-" + Date.now(); // bump key
+
     const safeTitle = getSafeTitle(blobName);
 
-    console.log("getOnlyOfficeConfig", `safeTitle: ${safeTitle}`, "info");
+    console.log(
+      "getOnlyOfficeConfig",
+      `${url}`,
+      `safeTitle: ${safeTitle}`,
+      "info"
+    );
 
     // Tentukan tipe dokumen dan mode editor
     const fileType = blobName.split(".").pop()?.toLowerCase() || "";
@@ -155,7 +171,7 @@ export const getOnlyOfficeConfig = async (blobName: string) => {
         title: blobName,
         url,
         fileType,
-        key,
+        key
       },
       documentType,
       editorConfig: {
@@ -167,9 +183,9 @@ export const getOnlyOfficeConfig = async (blobName: string) => {
           autosave: true,
           chat: true,
           feedback: true,
-          comments: true,
-        },
-      },
+          comments: true
+        }
+      }
     };
 
     console.log(
@@ -180,7 +196,7 @@ export const getOnlyOfficeConfig = async (blobName: string) => {
 
     // Tandatangani config dengan JWT untuk keamanan
     const token = jwt.sign(config, process.env.ONLYOFFICE_JWT_SECRET!, {
-      algorithm: "HS256",
+      algorithm: "HS256"
     });
 
     return { ...config, token };
